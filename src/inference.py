@@ -42,26 +42,34 @@ def evaluate_track1(img_output, txt_output, split: RefCocoSplit, limit=None, k=1
     assert len(img_embeds) == len(gt), (len(img_embeds), len(gt))
     assert len(txt_embeds) == len(txt_id), (len(txt_embeds), len(txt_id))
 
+    # Build mapping from image_id to all captions for that image
+    # Also track the first index where each image_id appears
+    image_id_to_captions = {}
+    image_id_to_first_index = {}
+
+    for i, entry in enumerate(gt):
+        img_id = entry["image_id"]
+        if img_id not in image_id_to_captions:
+            image_id_to_captions[img_id] = set()
+            image_id_to_first_index[img_id] = i
+        image_id_to_captions[img_id].update(entry["captions"])
+
     recalls = []
 
-    for i in range(len(img_embeds)):
-        gt_ids = gt[i]["captions"]
+    # Evaluate only once per unique image_id (using first occurrence)
+    for img_id, first_idx in image_id_to_first_index.items():
+        # Get all captions for this image_id
+        gt_ids = image_id_to_captions[img_id]
 
-        # print(txt_id[i])
-        # print(gt[i])
-
-        # Top-K text indices by similarity
-        top_k = np.argsort(-sim_matrix[i])[:k]
+        # Top-K text indices by similarity (use the first occurrence's embedding)
+        top_k = np.argsort(-sim_matrix[first_idx])[:k]
 
         # Map to real text IDs
         predicted_txt_ids = [txt_id[idx] for idx in top_k]
 
         # Fractional recall: how many GTs are in top-K
-        # print(predicted_txt_ids)
-        # print(gt_ids)
         matched = len(set(predicted_txt_ids) & set(gt_ids))
         recall_i = matched / len(gt_ids)
-        # print(recall_i)
         recalls.append(recall_i)
 
     return np.mean(recalls)
