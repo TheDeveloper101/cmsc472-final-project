@@ -38,9 +38,11 @@ parser.add_argument("--topk", choices=["cosine", "faiss"], default="cosine",
 parser.add_argument("--faiss-compute-unit", choices=["all", "npu", "gpu", "cpu"], default="all",
                     help="Compute unit for FAISS compile and inference jobs (only applies with --topk faiss)")
 parser.add_argument("--profile", action="store_true", help="Submit profile jobs after recall is computed")
-parser.add_argument("--quantize", action="store_true", help="Apply post-training quantization during compilation")
-parser.add_argument("--quantize-type", default="int16", choices=["w4a8", "w8a16", "w4a16", "int8", "int16"],
-                    help="Quantization type (only applies with --quantize)")
+parser.add_argument("--quantize", action="store_true", help="Apply post-training quantization before compilation")
+parser.add_argument("--weights-dtype", default="INT8",
+                    help="QuantizeDtype for weights (only applies with --quantize, e.g. INT8, INT16)")
+parser.add_argument("--activations-dtype", default="INT8",
+                    help="QuantizeDtype for activations (only applies with --quantize, e.g. INT8, INT16)")
 parser.add_argument("--image-calibration-id", default=None,
                     help="QAI Hub dataset ID for image calibration data (from upload_calibration.py)")
 parser.add_argument("--text-calibration-id", default=None,
@@ -51,11 +53,12 @@ if args.quantize and (args.image_calibration_id is None or args.text_calibration
     parser.error("--quantize requires --image-calibration-id and --text-calibration-id")
 
 compile_options = "--target_runtime qnn_dlc"
-if args.quantize:
-    compile_options += f" --quantize_full_type {args.quantize_type}"
 
-image_calib_dataset = qai_hub.get_dataset(args.image_calibration_id) if args.quantize else None
-text_calib_dataset  = qai_hub.get_dataset(args.text_calibration_id)  if args.quantize else None
+if args.quantize:
+    weights_dtype     = getattr(qai_hub.QuantizeDtype, args.weights_dtype.upper())
+    activations_dtype = getattr(qai_hub.QuantizeDtype, args.activations_dtype.upper())
+    image_calib_dataset = qai_hub.get_dataset(args.image_calibration_id)
+    text_calib_dataset  = qai_hub.get_dataset(args.text_calibration_id)
 
 targets = MODELS if args.all else {args.model: MODELS[args.model]}
 
@@ -109,7 +112,7 @@ for model_name in targets:
     topk_onnx_path  = os.path.join(onnx_dir, "topk_retrieval.onnx")
 
     required_paths = [image_onnx_path, text_onnx_path]
-    if args.topk == "device":
+    if args.topk == "cosine":
         required_paths.append(topk_onnx_path)
     if not all(os.path.exists(p) for p in required_paths):
         print(f"  Skipping: ONNX not found. Run: python src/export_onnx.py --all")
@@ -117,27 +120,47 @@ for model_name in targets:
 
     onnx_img  = load_and_validate(image_onnx_path, "image encoder")
     onnx_txt  = load_and_validate(text_onnx_path,  "text encoder")
-    onnx_topk = load_and_validate(topk_onnx_path,  "top-k retrieval") if args.topk == "device" else None
-    if onnx_img is None or onnx_txt is None or (args.topk == "device" and onnx_topk is None):
+    onnx_topk = load_and_validate(topk_onnx_path,  "top-k retrieval") if args.topk == "cosine" else None
+    if onnx_img is None or onnx_txt is None or (args.topk == "cosine" and onnx_topk is None):
         continue
+
+    # ── Quantize (optional, produces quantized ONNX for compilation) ─────────
+    if args.quantize:
+        print("  Submitting quantize jobs...")
+        img_quantize_job = qai_hub.submit_quantize_job(
+            model=onnx_img,
+            calibration_data=image_calib_dataset,
+            weights_dtype=weights_dtype,
+            activations_dtype=activations_dtype,
+        )
+        txt_quantize_job = qai_hub.submit_quantize_job(
+            model=onnx_txt,
+            calibration_data=text_calib_dataset,
+            weights_dtype=weights_dtype,
+            activations_dtype=activations_dtype,
+        )
+        print(f"  Quantize job IDs — image: {img_quantize_job.job_id}, text: {txt_quantize_job.job_id}")
+        img_to_compile = img_quantize_job.get_target_model()
+        txt_to_compile = txt_quantize_job.get_target_model()
+    else:
+        img_to_compile = onnx_img
+        txt_to_compile = onnx_txt
 
     # ── Compile (submit all jobs first, then await) ───────────────────────────
     print("  Submitting compile jobs...")
     img_compile_job = qai_hub.submit_compile_job(
-        model=onnx_img,
+        model=img_to_compile,
         device=target_device,
         input_specs=get_input_specs(onnx_img),
         options=compile_options,
-        calibration_data=image_calib_dataset,
     )
     txt_compile_job = qai_hub.submit_compile_job(
-        model=onnx_txt,
+        model=txt_to_compile,
         device=target_device,
         input_specs=get_input_specs(onnx_txt),
         options=compile_options,
-        calibration_data=text_calib_dataset,
     )
-    if args.topk == "device":
+    if args.topk == "cosine":
         topk_compile_job = qai_hub.submit_compile_job(
             model=onnx_topk,
             device=target_device,
@@ -151,7 +174,7 @@ for model_name in targets:
     img_compiled = img_compile_job.get_target_model()
     txt_compiled = txt_compile_job.get_target_model()
 
-    if args.topk == "device":
+    if args.topk == "":
         topk_compiled = topk_compile_job.get_target_model()
 
         # ── Encoder inference ─────────────────────────────────────────────────
