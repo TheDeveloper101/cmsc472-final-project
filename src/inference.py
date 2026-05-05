@@ -5,7 +5,7 @@ import numpy as np
 import qai_hub
 
 from utils import CAPTIONS_PER_IMAGE, JOB_IDS, TOPK_IMAGES_PER_BATCH
-from utils import MAX_INFERENCE_INFLIGHT
+from utils import MAX_INFERENCE_INFLIGHT, set_seed
 
 
 def first_output(job):
@@ -265,4 +265,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    set_seed(42)
     main()

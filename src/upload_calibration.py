@@ -10,7 +10,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from dataset_store import get_or_upload_dataset, try_resolve_cached_dataset_id
-from utils import MODELS, MODEL_PRETRAINED, NUM_CALIBRATION_SAMPLES
+from utils import MODELS, MODEL_PRETRAINED, NUM_CALIBRATION_SAMPLES, set_seed
 
 
 def upload_calibration_datasets(
@@ -141,4 +141,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    set_seed(42)
     main()

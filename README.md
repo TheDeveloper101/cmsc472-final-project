@@ -1,10 +1,11 @@
-# MobileCLIP QAI Hub Benchmarking
+# 472 Final Project - Image-Text Retrieval on Edge Devices
+This repo explores the effect of quantization on performance and resource usage, quantizing MobileClip models of various sizes at varying levels of quantization, and exploring the effects this has on recall accuracy, latency, and memory usage. We evaluate these effects by running these quantized models on a Samsung Galaxy S25 device accessible through Qualcomm AI Hub (QAI Hub). 
 
-This repo benchmarks multiple MobileCLIP variants on Qualcomm AI Hub (QAI Hub) by:
+Our process is as follows:
 
 1. Exporting models to ONNX
 2. Uploading evaluation datasets to QAI Hub
-3. Compiling for a target device
+3. Compiling and quantizing for a target device
 4. Running inference and computing Recall@10
 
 The main “end-to-end” entrypoint is `src/experiments.py`.
@@ -14,18 +15,14 @@ The main “end-to-end” entrypoint is `src/experiments.py`.
 **Prereqs**
 
 - Python 3.10
-- A working QAI Hub account and credentials configured locally (so `qai_hub` can submit jobs)
-
-
-
+- A working [QAI Hub account](https://workbench.aihub.qualcomm.com/) and credentials configured locally, required to submit compilation/inference jobs on the edge device
 ```bash
 conda create -n clipenv python=3.10
 conda activate clipenv
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+qai-hub configure --api_token API_TOKEN
 ```
-
-
 ## Project Configuration
 
 This project uses `config.ini` for a couple repo-relative paths:
@@ -40,11 +37,7 @@ Default:
 COCO_PATH=data/coco
 RESULTS_PATH=results
 ```
-
-Most of the QAI-Hub-driven pipeline (including `experiments.py`) uses the HuggingFace
-dataset `yerevann/coco-karpathy` for upload/eval and will write outputs under `results/`.
-
-
+## TODO - Do we need to download the dataset via cli???
 
 ## Using `experiments.py`
 
@@ -59,7 +52,7 @@ dataset `yerevann/coco-karpathy` for upload/eval and will write outputs under `r
 
 ### Basic Runs
 
-Run all models (cosine top-k):
+Run all models:
 
 ```bash
 python src/experiments.py
@@ -70,8 +63,6 @@ Run a single model:
 ```bash
 python src/experiments.py --models "MobileCLIP2-S0"
 ```
-
-Top-k is always cosine (FAISS support has been removed).
 
 Write results to a specific file:
 
@@ -93,12 +84,6 @@ Control image upload and image-encoder inference batch sizing:
 python src/experiments.py --images-per-batch 250
 ```
 
-Control top-k inference batch sizing (defaults to `--images-per-batch`):
-
-```bash
-python src/experiments.py --topk-images-per-batch 250
-```
-
 ### Quantization
 
 You can quantize both encoders during compilation:
@@ -109,7 +94,7 @@ python src/experiments.py --quantize int16
 
 Quantization requires calibration datasets. You can either:
 
-1. Let the script upload calibration datasets automatically (default behavior when `--quantize` is set and no IDs are provided), or
+1. Let the script upload calibration datasets automatically (default behavior when `--quantize` is set and no IDs are provided, using non-test data from the coco dataset), or
 2. Provide existing QAI Hub calibration dataset IDs:
 
 ```bash
@@ -217,6 +202,10 @@ options:
                         (default: True)
 ```
 
+# Reproducible random seeds
+
+We define our seeding function in `src/utils.py`, and invoke it wherever we run our model (starting in `src/experiments.py`, before running main)
+
 
 ## Output Artifacts
 
@@ -224,3 +213,4 @@ options:
 - ONNX exports for experiments: `results/onnx_experiments/<key>/<model_name>/...`
 - Dataset cache registry: `datasets.json`
 - Some scripts may also update `job_ids.json` with the “last run” IDs
+

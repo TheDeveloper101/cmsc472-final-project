@@ -5,6 +5,9 @@ Definitions of constants used across files
 import configparser
 import os
 import json
+import numpy as np
+import torch
+import random
 from pathlib import Path
 
 from dataset_registry import DatasetRegistry
@@ -137,3 +140,19 @@ JOB_IDS = JobIds("job_ids.json")
 # Local cache of uploaded dataset metadata (id, name, expiration, and a stable content key).
 # The registry prunes expired/invalid entries on load.
 DATASETS = DatasetRegistry("datasets.json")
+
+
+def set_seed(seed: int = 42):
+    # Python and NumPy
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    
+    # PyTorch CPU and GPU
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # For multi-GPU
+    
+    # Force deterministic algorithms
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False

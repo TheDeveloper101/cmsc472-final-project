@@ -5,7 +5,7 @@ import qai_hub
 import compile_and_profile
 from inference import run_inference
 from upload_dataset import upload_datasets
-from utils import MODELS, MAX_INFERENCE_INFLIGHT, JOB_IDS, IMAGES_PER_BATCH, NUM_IMAGE_SAMPLES, CAPTIONS_PER_IMAGE
+from utils import MODELS, MAX_INFERENCE_INFLIGHT, JOB_IDS, IMAGES_PER_BATCH, NUM_IMAGE_SAMPLES, CAPTIONS_PER_IMAGE, set_seed
 
 
 def build_arg_parser():
@@ -98,4 +98,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    set_seed(42)
     main()

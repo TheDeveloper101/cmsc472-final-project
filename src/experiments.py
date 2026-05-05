@@ -24,6 +24,7 @@ from utils import (
     MAX_INFERENCE_INFLIGHT,
     NUM_IMAGE_SAMPLES,
     NUM_CALIBRATION_SAMPLES,
+    set_seed
 )
 
 
@@ -582,4 +583,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    set_seed(42)
     main()

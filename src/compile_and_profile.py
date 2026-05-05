@@ -4,7 +4,7 @@ import os
 import onnx
 import qai_hub
 
-from utils import RESULTS_PATH, MODELS, JOB_IDS
+from utils import RESULTS_PATH, MODELS, JOB_IDS, set_seed
 
 # NOTE: This module is responsible for submitting compile/profile jobs.
 # Inference/evaluation lives in src/inference.py and src/upload_and_run.py.
@@ -302,4 +302,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    set_seed(42)
     main()

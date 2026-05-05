@@ -5,7 +5,7 @@ import open_clip
 import torch
 from timm.utils import reparameterize_model
 
-from utils import MODELS, MODEL_PRETRAINED, RESULTS_PATH, NUM_IMAGE_SAMPLES, CAPTIONS_PER_IMAGE, K, TOPK_IMAGES_PER_BATCH
+from utils import MODELS, MODEL_PRETRAINED, RESULTS_PATH, NUM_IMAGE_SAMPLES, CAPTIONS_PER_IMAGE, K, TOPK_IMAGES_PER_BATCH, set_seed
 
 device = torch.device("cpu")  # use CPU to avoid GPU device issues during export
 
@@ -183,4 +183,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    set_seed(42)
     main()

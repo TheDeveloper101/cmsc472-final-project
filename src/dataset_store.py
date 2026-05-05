@@ -4,7 +4,7 @@ from typing import Any
 import qai_hub
 
 from dataset_registry import DatasetInfo
-from utils import DATASETS
+from utils import DATASETS, set_seed
 
 
 def try_resolve_cached_dataset_id(*, key: str, cache: bool = True, cache_write: bool = True) -> str | None:
