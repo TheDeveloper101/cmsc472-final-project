@@ -577,6 +577,11 @@ def main(argv=None):
             "experiments",
             f"experiments_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
         )
+    else:
+        # If the user passes a nested path, ensure the directory exists.
+        parent = os.path.dirname(out_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nWrote experiment summary to: {out_path}")
