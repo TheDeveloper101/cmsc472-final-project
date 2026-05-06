@@ -571,17 +571,15 @@ def main(argv=None):
 
     out_path = args.output
     if out_path is None:
-        os.makedirs(os.path.join(RESULTS_PATH, "experiments"), exist_ok=True)
         out_path = os.path.join(
             RESULTS_PATH,
             "experiments",
             f"experiments_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
         )
-    else:
-        # If the user passes a nested path, ensure the directory exists.
-        parent = os.path.dirname(out_path)
-        if parent:
-            os.makedirs(parent, exist_ok=True)
+    # Ensure the output directory exists (covers both default and user-provided --output paths).
+    parent = os.path.dirname(out_path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nWrote experiment summary to: {out_path}")
