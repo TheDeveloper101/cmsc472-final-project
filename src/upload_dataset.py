@@ -11,7 +11,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from dataset_store import get_or_upload_dataset, try_resolve_cached_dataset_id
-from utils import MODELS, MODEL_PRETRAINED, NUM_IMAGE_SAMPLES, CAPTIONS_PER_IMAGE, JOB_IDS, IMAGES_PER_BATCH
+from utils import MODELS, MODEL_PRETRAINED, NUM_IMAGE_SAMPLES, CAPTIONS_PER_IMAGE, JOB_IDS, IMAGES_PER_BATCH, set_seed
 
 
 def upload_datasets(
