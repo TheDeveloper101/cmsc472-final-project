@@ -1,3 +1,8 @@
+"""
+Perform inference on precompiled models
+"""
+
+
 import argparse
 import time
 
