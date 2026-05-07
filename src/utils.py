@@ -42,6 +42,8 @@ NUM_CALIBRATION_SAMPLES = NUM_IMAGE_SAMPLES
 BATCH_SIZE = 512
 NUM_DOWNLOAD_WORKERS = 16
 
+MAX_PROFILER_ITERATIONS = 100
+
 # Anchor the working directory to the project root so all relative paths
 # (RESULTS_PATH, config.ini, etc.) resolve correctly regardless of invocation dir.
 _src_dir = os.path.dirname(__file__)
