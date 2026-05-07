@@ -48,9 +48,9 @@ def build_arg_parser():
              "If provided without a value, defaults to int16.",
     )
     parser.add_argument("--image-calibration-id", default=None,
-                        help="QAI Hub dataset ID for image calibration data (required for --quantize)")
+                        help="QAI Hub dataset ID for image calibration data")
     parser.add_argument("--text-calibration-id", default=None,
-                        help="QAI Hub dataset ID for text calibration data (required for --quantize)")
+                        help="QAI Hub dataset ID for text calibration data")
     parser.add_argument("--calibration-samples", type=int, default=None,
                         help=f"Number of validation samples to use for quantization calibration "
                              f"(default from utils.py: {NUM_CALIBRATION_SAMPLES}).")
@@ -297,6 +297,7 @@ def main(argv=None):
     from inference import first_output as first_output_inference
     target_device = qai_hub.Device(args.device)
     prefix = (args.job_name_prefix.strip() + " ") if args.job_name_prefix and args.job_name_prefix.strip() else ""
+    profile_options = "--max_profiler_iterations 100"
 
     def _recall_from_topk_indices(*, topk_indices: np.ndarray, num_images: int) -> float:
         recalls = []
@@ -319,6 +320,41 @@ def main(argv=None):
         image_compiled = qai_hub.get_job(cj["image_compiled_id"]).get_target_model()
         text_compiled = qai_hub.get_job(cj["text_compiled_id"]).get_target_model()
 
+        def _trim_profile(raw: dict | None) -> dict:
+            raw = raw or {}
+            if not isinstance(raw, dict):
+                return {"execution_summary": {}}
+            summary = raw.get("execution_summary")
+            if not isinstance(summary, dict):
+                # Some Hub APIs may return the flat dict directly.
+                summary = raw
+            keep = (
+                "estimated_inference_time",
+                "estimated_inference_peak_memory",
+                "first_load_time",
+                "first_load_peak_memory",
+                "warm_load_time",
+                "warm_load_peak_memory",
+            )
+            return {"execution_summary": {k: summary[k] for k in keep if k in summary}}
+
+        def _profile_one(*, kind: str, compiled):
+            qlab = args.quantize if args.quantize is not None else "fp"
+            name = f"profile :: {model_name} :: {kind} :: {qlab}"
+            pj = qai_hub.submit_profile_job(
+                model=compiled,
+                device=target_device,
+                name=name,
+                options=profile_options,
+            )
+            raw = pj.download_profile()
+            return {
+                "job_id": pj.job_id,
+                "url": pj.url,
+                "name": name,
+                "data": _trim_profile(raw),
+            }
+
         def _inference_detail(job: qai_hub.InferenceJob):
             """
             Fetch Hub-side timing/memory detail for an inference job.
@@ -336,6 +372,12 @@ def main(argv=None):
                 }
             except Exception as e:
                 return {"detail_error": f"{type(e).__name__}: {e}"}
+
+        # Submit profiling jobs immediately so they can run while inference runs.
+        profile_block: dict = {"text": None, "image": None}
+        with ThreadPoolExecutor(max_workers=2) as pex:
+            fut_text = pex.submit(_profile_one, kind="text", compiled=text_compiled)
+            fut_image = pex.submit(_profile_one, kind="image", compiled=image_compiled)
 
         # Submit text encoder inference early so it can run in parallel with image batches.
         text_embs = None
@@ -523,6 +565,17 @@ def main(argv=None):
         topk_parts = [results_by_batch[i] for i in range(num_topk_batches)]
         topk_indices = np.concatenate(topk_parts, axis=0) if topk_parts else np.zeros((0, 0), dtype=np.int64)
         recall_at_10 = _recall_from_topk_indices(topk_indices=topk_indices, num_images=num_images)
+
+        # Join profiling results (still running in parallel with inference above).
+        try:
+            profile_block["text"] = fut_text.result()
+        except Exception as e:
+            profile_block["text"] = None
+        try:
+            profile_block["image"] = fut_image.result()
+        except Exception as e:
+            profile_block["image"] = None
+
         results["runs"].append({
             "model": model_name,
             "quantize": args.quantize,
@@ -533,6 +586,7 @@ def main(argv=None):
                 "images": sorted(image_jobs, key=lambda r: r.get("batch_index", 0)),
                 "topk": {"batch_size": topk_batch, "jobs": topk_jobs},
             },
+            "profile": profile_block,
             "job_ids_snapshot": _snapshot_for_run(
                 cj=cj,
                 image_dataset_ids=image_dataset_ids,
@@ -543,31 +597,20 @@ def main(argv=None):
 
     # Evaluate models with limited concurrency to avoid creating a large number of Hub jobs.
     planned_models = [m for m in models if m in compile_by_model]
-    max_workers = min(2, max(1, len(planned_models)))
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        future_to_model = {ex.submit(_eval_model, m): m for m in planned_models}
-        for fut in as_completed(future_to_model):
-            model_name = future_to_model[fut]
-            try:
-                fut.result()
-            except Exception as e:
-                cj = compile_by_model.get(model_name) or {}
-                ds = model_to_datasets.get(model_name) or {}
-                image_ids = ds.get("image_dataset_ids") or []
-                text_id = ds.get("text_dataset_id")
-                results["runs"].append({
-                    "model": model_name,
-                    "quantize": args.quantize,
-                    "recall_at_10": None,
-                    "job_ids_snapshot": _snapshot_for_run(
-                        cj=cj,
-                        image_dataset_ids=image_ids,
-                        text_dataset_id=text_id,
-                        topk_compiled_id=cj.get("topk_compiled_id"),
-                    ),
-                    "error": f"{type(e).__name__}: {e}",
-                })
-                print(f"  ERROR: {model_name}: {type(e).__name__}: {e}")
+    # Keep overall inference concurrency bounded. Inference submission within a model is already
+    # throttled by MAX_INFERENCE_INFLIGHT; running multiple models concurrently would multiply
+    # the number of in-flight inference jobs.
+    for m in planned_models:
+        try:
+            _eval_model(m)
+        except Exception as e:
+            results["runs"].append({
+                "model": m,
+                "quantize": args.quantize,
+                "recall_at_10": None,
+                "error": f"{type(e).__name__}: {e}",
+            })
+            print(f"  ERROR: {m}: {type(e).__name__}: {e}")
 
     out_path = args.output
     if out_path is None:
@@ -580,8 +623,102 @@ def main(argv=None):
     parent = os.path.dirname(out_path)
     if parent:
         os.makedirs(parent, exist_ok=True)
+    # Output schema matches results/experiments/benchmark.json: list of per-model records.
+    out_records: list[dict] = []
+    for run in results.get("runs") or []:
+        model_name = run.get("model")
+        jobs = run.get("jobs") or {}
+        snap = run.get("job_ids_snapshot") or {}
+
+        def _compile_info(job_id: str | None):
+            if not job_id:
+                return None
+            j = qai_hub.get_job(job_id)
+            return {"job_id": job_id, "url": j.url, "name": getattr(j, "name", None)}
+
+        compiled = {
+            "text": _compile_info((snap.get("text") or {}).get("compiled_id")),
+            "image": _compile_info((snap.get("image") or {}).get("compiled_id")),
+            "topk": _compile_info((snap.get("topk") or {}).get("compiled_id")),
+        }
+
+        # Inference: text
+        inference_text = None
+        if jobs.get("text"):
+            tj = jobs["text"]
+            inference_text = {
+                "job_id": tj.get("job_id"),
+                "url": tj.get("url"),
+                "name": tj.get("name"),
+                "dataset_id": (snap.get("text") or {}).get("dataset_id"),
+            }
+
+        # Inference: images
+        inference_images = []
+        for rec in (jobs.get("images") or []):
+            bi = int(rec.get("batch_index") or 0)
+            start = bi * images_per_batch
+            ds_size = 0
+            if start < num_images:
+                ds_size = min(images_per_batch, num_images - start)
+            inference_images.append(
+                {
+                    "job_id": rec.get("job_id"),
+                    "url": rec.get("url"),
+                    "name": rec.get("name"),
+                    "dataset_id": rec.get("dataset_id"),
+                    "dataset_size": int(ds_size),
+                    "_batch_index": bi,
+                }
+            )
+        inference_images.sort(key=lambda r: int(r.get("_batch_index") or 0))
+        for r in inference_images:
+            r.pop("_batch_index", None)
+
+        # Inference: topk
+        inference_topk = []
+        topk = jobs.get("topk") or {}
+        for rec in (topk.get("jobs") or []):
+            inference_topk.append(
+                {
+                    "job_id": rec.get("job_id"),
+                    "url": rec.get("url"),
+                    "name": rec.get("name"),
+                    "dataset_size": int(rec.get("batch_valid") or 0),
+                    "_batch_index": int(rec.get("batch_index") or 0),
+                }
+            )
+        inference_topk.sort(key=lambda r: int(r.get("_batch_index") or 0))
+        for r in inference_topk:
+            r.pop("_batch_index", None)
+
+        # Profile (may be missing if run errored before profiling completed)
+        prof = run.get("profile") or {"text": None, "image": None}
+
+        out_records.append(
+            {
+                "model": model_name,
+                "quantize": run.get("quantize"),
+                "recall": run.get("recall_at_10"),
+                "device": args.device,
+                "num_image_samples": int(num_images),
+                "num_text_samples": int(num_text),
+                "images_per_batch": int(images_per_batch),
+                "images_per_topk_batch": int(topk_images_per_batch),
+                "num_image_calibration_samples": int(calibration_samples),
+                "num_text_calibration_samples": int(calibration_samples),
+                "compiled": compiled,
+                "inference": {
+                    "text": inference_text,
+                    "image": inference_images,
+                    "topk": inference_topk,
+                },
+                "profile": prof,
+            }
+        )
+
     with open(out_path, "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(out_records, f, indent=2)
     print(f"\nWrote experiment summary to: {out_path}")
 
 
