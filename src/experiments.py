@@ -323,7 +323,7 @@ def main(argv=None):
         def _trim_profile(raw: dict | None) -> dict:
             raw = raw or {}
             if not isinstance(raw, dict):
-                return {"execution_summary": {}}
+                return {}
             summary = raw.get("execution_summary")
             if not isinstance(summary, dict):
                 # Some Hub APIs may return the flat dict directly.
@@ -336,7 +336,7 @@ def main(argv=None):
                 "warm_load_time",
                 "warm_load_peak_memory",
             )
-            return {"execution_summary": {k: summary[k] for k in keep if k in summary}}
+            return {k: summary[k] for k in keep if k in summary}
 
         def _profile_one(*, kind: str, compiled):
             qlab = args.quantize if args.quantize is not None else "fp"
@@ -352,7 +352,7 @@ def main(argv=None):
                 "job_id": pj.job_id,
                 "url": pj.url,
                 "name": name,
-                "data": _trim_profile(raw),
+                "execution_summary": _trim_profile(raw),
             }
 
         def _inference_detail(job: qai_hub.InferenceJob):
@@ -375,9 +375,9 @@ def main(argv=None):
 
         # Submit profiling jobs immediately so they can run while inference runs.
         profile_block: dict = {"text": None, "image": None}
-        with ThreadPoolExecutor(max_workers=2) as pex:
-            fut_text = pex.submit(_profile_one, kind="text", compiled=text_compiled)
-            fut_image = pex.submit(_profile_one, kind="image", compiled=image_compiled)
+        pex = ThreadPoolExecutor(max_workers=2)
+        fut_text = pex.submit(_profile_one, kind="text", compiled=text_compiled)
+        fut_image = pex.submit(_profile_one, kind="image", compiled=image_compiled)
 
         # Submit text encoder inference early so it can run in parallel with image batches.
         text_embs = None
@@ -575,6 +575,7 @@ def main(argv=None):
             profile_block["image"] = fut_image.result()
         except Exception as e:
             profile_block["image"] = None
+        pex.shutdown(wait=False)
 
         results["runs"].append({
             "model": model_name,
