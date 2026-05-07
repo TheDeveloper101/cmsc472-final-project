@@ -2,18 +2,18 @@ import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from utils import NUM_CALIBRATION_SAMPLES
 
 import qai_hub
 
 # Input JSON produced by src/experiments.py
-INPUT_JSON = "results/old_experiments/experiments_20260505_180901.json"
+INPUT_JSON = "results/old_experiments/benchmark_quantize_w8a16.json"
 
 # Output JSON path (will not overwrite INPUT_JSON). If None, write alongside input with a timestamp suffix.
-OUTPUT_JSON = "results/experiments/final_test.json"
+OUTPUT_JSON = "results/experiments/w8a16_profile_test.json"
 
 # Assumed calibration sample counts when experiments.py was run with --calibration-samples (default 5000 in runner.sh).
 # Used only to populate num_image_calibration_samples / num_text_calibration_samples.
-CALIBRATION_SAMPLES = 5000
 
 # Parallelism for submitting + downloading profile jobs.
 MAX_PROFILE_WORKERS = 4
@@ -178,8 +178,8 @@ for run in runs_in:
         "num_text_samples": num_text_samples,
         "images_per_batch": images_per_batch,
         "images_per_topk_batch": images_per_topk_batch,
-        "num_image_calibration_samples": int(CALIBRATION_SAMPLES),
-        "num_text_calibration_samples": int(CALIBRATION_SAMPLES),
+        "num_image_calibration_samples": int(NUM_CALIBRATION_SAMPLES),
+        "num_text_calibration_samples": int(NUM_CALIBRATION_SAMPLES),
         "compiled": compiled_block,
         "inference": {
             "text": inference_text,

@@ -1,3 +1,8 @@
+"""
+Upload a calibration dataset to be used for quantization to QAI Hub
+"""
+
+
 import argparse
 import io
 import urllib.request

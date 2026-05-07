@@ -1,3 +1,6 @@
+"""
+Uploads a dataset to QAI Hub
+"""
 import argparse
 import io
 import urllib.request
