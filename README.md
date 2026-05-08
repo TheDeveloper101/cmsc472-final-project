@@ -75,3 +75,43 @@ python src/experiments.py --models <model name, defaults to all models> --quanti
 ### CLI Help (`--help`)
 
 The flags for `src/experiments.py` can be accessed via `src/experiments.py --help`:
+
+## Using `json_to_csv.py`
+
+[`src/json_to_csv.py`](src/json_to_csv.py) converts one or more experiment JSON summaries (written by
+`src/experiments.py`) into a single CSV table.
+
+Note:
+- Paths are resolved relative to the repo root (the script imports `src/utils.py`, which anchors the working
+  directory to the project root and reads `RESULTS_PATH` from `config.ini`).
+
+### Default (convert all experiment JSON files)
+
+This reads all `*.json` files under `${RESULTS_PATH}/experiments/` and writes a CSV under
+`${RESULTS_PATH}/tables/` with a unique timestamped name:
+
+```bash
+python src/json_to_csv.py
+```
+
+### Specify inputs and/or output
+
+`-i/--input` accepts one or more JSON files and/or directories (directories are expanded to `*.json`).
+
+```bash
+python src/json_to_csv.py -i results/experiments/experiments_20260507_190000.json -o results/tables/summary.csv
+```
+
+```bash
+python src/json_to_csv.py -i results/experiments -o results/tables/all_runs.csv
+```
+
+To see all flags:
+
+```bash
+python src/json_to_csv.py --help
+```
+
+## AI Disclosure
+
+We used AI-assisted coding tools to help implement parts of the codebase.
