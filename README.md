@@ -66,14 +66,14 @@ We define our seeding function in `src/utils.py`, and invoke it wherever we run 
 
 To reproduce a particular baseline on a particular model, run the following command. 
 ```bash
-python src/experiments.py --models <model name, defaults to all models> --num-images 5000 --images-per-batch 1250 --job-name-prefix "prefix" --output "results/experiments/results_name.json" --device "Samsung Galaxy S25 (Family)"
+python3 src/experiments.py --models <model name, defaults to all models> --num-images 5000 --images-per-batch 1250 --job-name-prefix "prefix" --output "results/experiments/results_name.json" --device "Samsung Galaxy S25 (Family)"
 ```
 
 To reproduce a particular quantization level on a particular model, run the following command. 
 ```bash
-python src/experiments.py
+python3 src/experiments.py
 
-python src/experiments.py --models <model name, defaults to all models> --quantize <int8, int16, w8a16> --calibration-samples 5000 --num-images 5000 --images-per-batch 1250 --job-name-prefix "prefix" --output "results/experiments/results_name.json" --device "Samsung Galaxy S25 (Family)"
+python3 src/experiments.py --models <model name, defaults to all models> --quantize <int8, int16, w8a16> --calibration-samples 5000 --num-images 5000 --images-per-batch 1250 --job-name-prefix "prefix" --output "results/experiments/results_name.json" --device "Samsung Galaxy S25 (Family)"
 ```
 ### CLI Help (`--help`)
 
