@@ -34,7 +34,7 @@ def build_arg_parser():
                         help="Models to benchmark. If omitted, benchmarks all models.")
     parser.add_argument("--num-images", type=int, default=None,
                         help=f"Number of images to evaluate (default from utils.py: {NUM_IMAGE_SAMPLES}).")
-    parser.add_argument("--device", default="Samsung Galaxy S25 (Family)", help="QAI Hub target device")
+    parser.add_argument("--device", default="Samsung Galaxy S25 (Family)", help="QAI Hub target device. Default is Samsung Galaxy S25 (Family).")
     # Optional arg:
     #   no flag => no quantization
     #   --quantize <type> => quantize both encoders using the given quantization type
