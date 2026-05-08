@@ -10,3 +10,10 @@ python3 src/experiments.py --calibration-samples 5000 --quantize int16 --num-ima
 
 python3 src/experiments.py --calibration-samples 5000 --quantize w8a16 --num-images 5000 --images-per-batch 1250 --job-name-prefix "w8a16" --output "results/experiments/benchmark_quantize_w8a16.json" --device "Samsung Galaxy S25 (Family)"
 
+mkdir -p results/tables
+python3 src/json_to_csv.py \
+  -i results/experiments/benchmark_baseline.json \
+     results/experiments/benchmark_quantize_int8.json \
+     results/experiments/benchmark_quantize_int16.json \
+     results/experiments/benchmark_quantize_w8a16.json \
+  -o results/tables/benchmark_table.csv
