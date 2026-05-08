@@ -75,6 +75,9 @@ python3 src/experiments.py
 
 python3 src/experiments.py --models <model name, defaults to all models> --quantize <int8, int16, w8a16> --calibration-samples 5000 --num-images 5000 --images-per-batch 1250 --job-name-prefix "prefix" --output "results/experiments/results_name.json" --device "Samsung Galaxy S25 (Family)"
 ```
+
+If downloading the dataset fails, it is likely due to an internet issue. Please rerun the code if this happens. Any dataset that was already downloaded will be cached.
+
 ### CLI Help (`--help`)
 
 The flags for `src/experiments.py` can be accessed via `src/experiments.py --help`:
