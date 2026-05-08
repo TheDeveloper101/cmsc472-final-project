@@ -23,6 +23,9 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 qai-hub configure --api_token API_TOKEN
 ```
+
+If using macOS, you might need to replace `python` with `python3`
+
 ## Project Configuration
 
 This project uses `config.ini` for a couple repo-relative paths:
@@ -41,12 +44,12 @@ RESULTS_PATH=results
 
 ## Reproducibility
 
-To reproduce all results shown in the paper, run `experiments/reproduce.sh`. 
+To reproduce all results shown in the paper, run `experiments/generate_table.sh`. 
 This will evaluate all results shown on Qualcomm AI Hub, running on a Samsung Galaxy S25. 
 This will take around a day if run without paralleization on a single machine. 
 To produce individual results, run `src/experiments.py` with arguments for the desired result, as described below.
 
-We define our seeding function in `src/utils.py`, and invoke it wherever we run our model (starting in `src/experiments.py`, before running main). We alalso define hyperparameters like dataset size there as well. 
+We define our seeding function in `src/utils.py`, and invoke it wherever we run our model (starting in `src/experiments.py`, before running main). We also define hyperparameters like dataset size there as well. 
 
 ## Using `experiments.py`
 
